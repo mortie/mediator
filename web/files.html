@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8">
+		<title>Mediator</title>
+		<link rel="stylesheet" href="style.css">
+		<link rel="icon" type="image/png" href="favicon.png">
+	</head>
+
+	<body>
+		<div id="breadcrumbs"></div>
+
+		<ul id="files"></ul>
+
+		<script src="util.js"></script>
+		<script>
+let filesEl = document.getElementById("files");
+let breadcrumbsEl = document.getElementById("breadcrumbs");
+let path = [];
+
+function renderEntry(ent) {
+	if (ent.type == "d") {
+		return html("span", {}, [
+			html("text", ent.name + "/")]);
+	} else {
+		return html("span", {}, [
+			html("text", ent.name)]);
+	}
+}
+
+async function render() {
+	let resp = await api("GET", "dir/" + path.join("/"));
+	clearElement(filesEl);
+	for (let ent of resp.entries) {
+		filesEl.appendChild(renderEntry(ent));
+	}
+}
+
+render();
+		</script>
+	</body>
+
+</html>
