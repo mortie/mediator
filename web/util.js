@@ -4,10 +4,17 @@ async function api(method, path, body = null) {
 		options.body = JSON.stringify(body);
 	}
 
-	let resp = await fetch("/api/" + path, options).then(r => r.text());
-	let json = JSON.parse(resp);
+	let json;
+	try {
+		let resp = await fetch("/api/" + path, options).then(r => r.text());
+		json = JSON.parse(resp);
+	} catch (err) {
+		alert(err.toString());
+		throw err;
+	}
 
 	if (json.error != null) {
+		alert(json.error);
 		throw new Error(json.error);
 	}
 
@@ -15,6 +22,10 @@ async function api(method, path, body = null) {
 }
 
 function html(name, attrs, children) {
+	if (!(children instanceof Array)) {
+		children = [children];
+	}
+
 	if (name == "text") {
 		return document.createTextNode(attrs);
 	}
@@ -29,7 +40,11 @@ function html(name, attrs, children) {
 	}
 
 	for (let child of children) {
-		el.appendChild(child);
+		if (typeof child == "string") {
+			el.appendChild(document.createTextNode(child));
+		} else {
+			el.appendChild(child);
+		}
 	}
 
 	return el;
@@ -38,5 +53,16 @@ function html(name, attrs, children) {
 function clearElement(el) {
 	while (el.firstChild) {
 		el.removeChild(el.firstChild);
+	}
+}
+
+function renderToElement(el, children) {
+	if (!(children instanceof Array)) {
+		children = [children];
+	}
+
+	clearElement(el);
+	for (let child of children) {
+		el.appendChild(child);
 	}
 }

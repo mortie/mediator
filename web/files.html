@@ -1,11 +1,21 @@
 <!DOCTYPE html>
 <html>
-
 	<head>
 		<meta charset="utf-8">
 		<title>Mediator</title>
 		<link rel="stylesheet" href="style.css">
 		<link rel="icon" type="image/png" href="favicon.png">
+
+		<style>
+#breadcrumbs .crumb:first-child {
+	margin-left: 0px;
+}
+
+#breadcrumbs .crumb {
+	margin-left: 2px;
+	margin-right: 2px;
+}
+		</style>
 	</head>
 
 	<body>
@@ -15,30 +25,75 @@
 
 		<script src="util.js"></script>
 		<script>
-let filesEl = document.getElementById("files");
 let breadcrumbsEl = document.getElementById("breadcrumbs");
-let path = [];
+let filesEl = document.getElementById("files");
 
-function renderEntry(ent) {
+function renderEntry(path, ent) {
 	if (ent.type == "d") {
-		return html("span", {}, [
-			html("text", ent.name + "/")]);
+		let href =
+			path == "/" ? "#/" + ent.name
+			: "#" + path + "/" + ent.name;
+		return html("li", {}, [
+			html("a", {href}, ent.name + "/"),
+		]);
 	} else {
-		return html("span", {}, [
-			html("text", ent.name)]);
+		let href =
+			path == "/" ? "play.html#/" + ent.name
+			: "play.html#" + path + "/" + ent.name;
+		return html("li", {}, [
+			html("a", {href}, ent.name),
+		]);
 	}
+}
+
+function renderEntries(path, entries) {
+	let els = entries.map(ent => renderEntry(path, ent));
+	if (entries.length == 0) {
+		els.push(html("li", {}, "No files."));
+	}
+
+	return els;
+}
+
+function renderBreadcrumbs(path) {
+	let crumbPath = "#/";
+	let els = [];
+
+	els.push(html("a",
+		{class: "crumb", href: "#/"}, "/"));
+
+	for (let component of path.split("/")) {
+		if (component == "") {
+			continue;
+		}
+
+		if (crumbPath == "#/") {
+			crumbPath += component;
+		} else {
+			crumbPath += "/" + component;
+			els.push(html("text", "/"));
+		}
+
+		els.push(html("a",
+			{class: "crumb", href: crumbPath}, component));
+	}
+
+	return els;
 }
 
 async function render() {
-	let resp = await api("GET", "dir/" + path.join("/"));
-	clearElement(filesEl);
-	for (let ent of resp.entries) {
-		filesEl.appendChild(renderEntry(ent));
+	let path = "/";
+	if (location.hash.length > 1) {
+		path = location.hash.substr(1);
 	}
+
+	let resp = await api("GET", "dir" + path);
+	renderToElement(filesEl, renderEntries(path, resp.entries));
+	renderToElement(breadcrumbsEl, renderBreadcrumbs(path));
 }
 
 render();
+window.onhashchange = render;
 		</script>
 	</body>
-
 </html>
