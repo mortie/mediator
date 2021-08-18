@@ -7,10 +7,16 @@ github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46/go.mod h1:3eOhrU
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/gen2brain/shm v0.0.0-20200228170931-49f9650110c5 h1:Y5Q2mEwfzjMt5+3u70Gtw93ZOu2UuPeeeTBDntF7FoY=
+github.com/gen2brain/shm v0.0.0-20200228170931-49f9650110c5/go.mod h1:uF6rMu/1nvu+5DpiRLwusA6xB8zlkNoGzKn8lmYONUo=
 github.com/go-ole/go-ole v1.2.5 h1:t4MGB5xEDZvXI+0rMjjsfBsD7yAgp/s9ZDkL1JndXwY=
 github.com/go-ole/go-ole v1.2.5/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-vgo/robotgo v0.99.0 h1:Lp6kvic1/LxkSShf6KNjcrcE21FCFlonrCguQN96Ay4=
 github.com/go-vgo/robotgo v0.99.0/go.mod h1:0+i2QWRmZtbIF02RwmiGfFj33Judprukd8ls5J6Eajg=
+github.com/jezek/xgb v0.0.0-20210312150743-0e0f116e1240 h1:dy+DS31tGEGCsZzB45HmJJNHjur8GDgtRNX9U7HnSX4=
+github.com/jezek/xgb v0.0.0-20210312150743-0e0f116e1240/go.mod h1:3P4UH/k22rXyHIJD2w4h2XMqPX4Of/eySEZq9L6wqc4=
+github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 h1:qq2nCpSrXrmvDGRxW0ruW9BVEV1CN2a9YDOExdt+U0o=
+github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329/go.mod h1:2VPVQDR4wO7KXHwP+DAypEy67rXf+okUx2zjgpCxZw4=
 github.com/lxn/win v0.0.0-20210218163916-a377121e959e h1:H+t6A/QJMbhCSEH5rAuRxh+CtW96g0Or0Fxa9IKr4uc=
 github.com/lxn/win v0.0.0-20210218163916-a377121e959e/go.mod h1:KxxjdtRkfNoYDCUP5ryK7XJJNTnpC8atvtmTheChOtk=
 github.com/otiai10/curr v0.0.0-20150429015615-9b4961190c95/go.mod h1:9qAhocn7zKJG+0mI8eUu6xqkFDYS2kb2saOteoSB3cE=

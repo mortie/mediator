@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Mediator - Remote</title>
+		<link rel="stylesheet" href="style.css">
+		<link rel="icon" type="image/png" href="favicon.png">
+	</head>
+
+	<body>
+		<img src="/api/remote/screencast">
+
+		<script src="util.js"></script>
+		<script>
+async function main() {
+	let screenSize = api("GET", "remote/screen-size");
+	let mousePos = api("GET", "remote/mouse-pos");
+}
+
+main();
+		</script>
+	</body>
+</html>

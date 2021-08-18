@@ -3,12 +3,14 @@ package main
 import "errors"
 import "log"
 import "os"
+import "fmt"
 import "path"
 import "net/http"
 import "io/ioutil"
 import "encoding/json"
 import "github.com/go-vgo/robotgo"
 import "github.com/BurntSushi/toml"
+import "coffee.mort.mediator/screencap"
 
 type Config struct {
 	BasePath string `toml:"base_path"`
@@ -81,7 +83,7 @@ func main() {
 	fs := http.FileServer(http.Dir("./web"))
 	http.Handle("/", fs)
 
-	http.HandleFunc("/api/screen-size", handler(func(w RW, req *Req) error {
+	http.HandleFunc("/api/remote/screen-size", handler(func(w RW, req *Req) error {
 		if req.Method == "GET" {
 			var size ScreenSizeData
 			size.Width, size.Height = robotgo.GetScreenSize()
@@ -91,7 +93,7 @@ func main() {
 		}
 	}))
 
-	http.HandleFunc("/api/mouse-pos", handler(func(w RW, req *Req) error {
+	http.HandleFunc("/api/remote/mouse-pos", handler(func(w RW, req *Req) error {
 		if req.Method == "GET" {
 			var pos MousePosData
 			pos.X, pos.Y = robotgo.GetMousePos()
@@ -109,6 +111,43 @@ func main() {
 			return errors.New("Invalid method: " + req.Method)
 		}
 	}))
+
+	http.HandleFunc("/api/remote/screencast", handler(func(w RW, req *Req) error {
+		if req.Method == "GET" {
+			w.Header().Add("Content-Type", "multipart/x-mixed-replace;boundary=MEDIATOR_FRAME_BOUNDARY")
+			w.WriteHeader(200)
+
+			for {
+				img := <-screencap.Capture()
+				log.Printf("Got image, %v bytes", img.Length)
+
+				var err error
+				_, err = w.Write([]byte(fmt.Sprintf(
+					"--MEDIATOR_FRAME_BOUNDARY\r\n" +
+					"Content-Type: image/jpeg\r\n" +
+					"Content-Length: %d\r\n" +
+					"\r\n", img.Length)))
+				if err != nil {
+					log.Printf("Write error: %v", err)
+					return nil
+				}
+
+				_, err = w.Write(img.Data[0:img.Length])
+				if err != nil {
+					log.Printf("Write error: %v", err)
+					return nil
+				}
+
+				_, err = w.Write([]byte("\r\n"))
+				if err != nil {
+					log.Printf("Write error: %v", err)
+					return nil
+				}
+			}
+		} else {
+			return errors.New("Invalid method: " + req.Method)
+		}
+	}));
 
 	http.HandleFunc("/api/dir/", handler(func(w RW, req *Req) error {
 		if req.Method == "GET" {
@@ -139,6 +178,8 @@ func main() {
 			return errors.New("Invalid method: " + req.Method)
 		}
 	}))
+
+	go screencap.Run()
 
 	log.Println("Listening on :3000...")
 	err = http.ListenAndServe("localhost:3000", nil)
