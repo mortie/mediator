@@ -5,10 +5,33 @@
 		<title>Mediator - Remote</title>
 		<link rel="stylesheet" href="style.css">
 		<link rel="icon" type="image/png" href="favicon.png">
+
+		<style>
+body {
+	margin: 0px;
+}
+
+#screencast-container {
+	max-height: calc(100% - 200px);
+	height: 100%;
+	text-align: center;
+}
+
+#screencast-container {
+	background: black;
+}
+
+#screencast {
+	max-height: calc(100vh - 200px);
+	max-width: 100%;
+}
+		</style>
 	</head>
 
 	<body>
-		<img src="/api/remote/screencast">
+		<div id="screencast-container">
+			<img id="screencast" src="/api/remote/screencast">
+		</div>
 
 		<script src="util.js"></script>
 		<script>
