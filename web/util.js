@@ -66,3 +66,6 @@ function renderToElement(el, children) {
 		el.appendChild(child);
 	}
 }
+
+function debounce(timeout) {
+}

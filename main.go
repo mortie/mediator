@@ -178,7 +178,7 @@ func main() {
 		}
 	}))
 
-	http.HandleFunc("/api/remote/keyboard-keys", handler(func(w RW, req *Req) error {
+	http.HandleFunc("/api/remote/keyboard-key", handler(func(w RW, req *Req) error {
 		if req.Method == "POST" {
 			var key KeyboardKeyData
 			err := json.NewDecoder(req.Body).Decode(&key)
@@ -206,7 +206,6 @@ func main() {
 
 			for {
 				img := <-screencap.Capture()
-				log.Printf("Got image, %v bytes", img.Length)
 
 				var err error
 				_, err = w.Write([]byte(fmt.Sprintf(

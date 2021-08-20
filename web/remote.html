@@ -15,6 +15,7 @@ body {
 	position: absolute;
 	left: 0px;
 	top: 0px;
+	pointer-events: none;
 }
 
 #screencast-container {
@@ -41,7 +42,7 @@ body {
 		</div>
 
 		<form id="text-form">
-			<input name="text" type="text">
+			<input id="text" name="text" type="text">
 		</form>
 
 		<script src="util.js"></script>
@@ -50,6 +51,50 @@ let cursorEl = document.getElementById("cursor");
 let screencastEl = document.getElementById("screencast");
 let screencastContainerEl = document.getElementById("screencast-container");
 let textFormEl = document.getElementById("text-form");
+let textEl = document.getElementById("text");
+let screencastSrc = screencastEl.src;
+
+window.addEventListener("blur", () => {
+	let canvas = document.createElement("canvas");
+	canvas.width = screencastEl.width;
+	canvas.height = screencastEl.height;
+	let ctx = canvas.getContext("2d");
+	ctx.drawImage(screencastEl, 0, 0, canvas.width, canvas.height);
+	screencastEl.src = canvas.toDataURL();
+});
+
+window.addEventListener("focus", () => {
+	screencastEl.src = screencastSrc;
+});
+
+window.addEventListener("keydown", evt => {
+	let handled = true;
+	console.log("key:", evt.key);
+	if (evt.key == " ") {
+		api("POST", "remote/keyboard-key", {key: "space"});
+	} else if (evt.key == "Enter" && document.activeElement.tagName != "INPUT") {
+		api("POST", "remote/keyboard-key", {key: "enter"});
+	} else if (evt.key == "ArrowUp") {
+		api("POST", "remote/keyboard-key", {key: "up"});
+	} else if (evt.key == "ArrowDown") {
+		api("POST", "remote/keyboard-key", {key: "down"});
+	} else if (evt.key == "ArrowLeft") {
+		api("POST", "remote/keyboard-key", {key: "left"});
+	} else if (evt.key == "ArrowRight") {
+		api("POST", "remote/keyboard-key", {key: "right"});
+	} else if (evt.key == "Escape") {
+		api("POST", "remote/keyboard-key", {key: "escape"});
+	} else {
+		handled = false;
+		if (evt.key.length == 1 && document.activeElement.tagName != "INPUT") {
+			textEl.focus();
+		}
+	}
+
+	if (handled) {
+		evt.preventDefault();
+	}
+});
 
 function updateCursor(mousePos, screenSize) {
 	let fracX = mousePos.x / screenSize.width;
@@ -58,6 +103,29 @@ function updateCursor(mousePos, screenSize) {
 	let top = fracY * screencastEl.offsetHeight + screencastEl.offsetTop;
 	cursorEl.style.left = left + "px";
 	cursorEl.style.top = top + "px";
+}
+
+let scrollDist = {x: 0, y: 0};
+function onScroll(delta) {
+	// Scroll is inverted
+	delta.x = -delta.x;
+	delta.y = -delta.y;
+
+	if (Math.abs(delta.x) > Math.abs(delta.y)) {
+		scrollDist.x += delta.x;
+		let distX = roundToZero(scrollDist.x);
+		if (distX != 0) {
+			api("POST", "remote/scroll", {x: distX, y: 0});
+			scrollDist.x -= distX;
+		}
+	} else {
+		scrollDist.y += delta.y;
+		let distY = roundToZero(scrollDist.y);
+		if (distY != 0) {
+			api("POST", "remote/scroll", {x: 0, y: distY});
+			scrollDist.y -= distY;
+		}
+	}
 }
 
 function moveDelta(mousePos, screenSize, delta) {
@@ -109,8 +177,8 @@ async function main() {
 		evt.preventDefault();
 		let text = evt.target.elements.text.value;
 		evt.target.elements.text.value = "";
-		await api("POST", "remote/keyboard-type", {text: evt.target.elements.text.value});
-		api("POST", "remote/keyboard-keys", {key: "enter", modifiers: []});
+		await api("POST", "remote/keyboard-type", {text});
+		api("POST", "remote/keyboard-key", {key: "enter"});
 	});
 
 	screencastContainerEl.addEventListener("click", evt => {
@@ -121,6 +189,11 @@ async function main() {
 	screencastContainerEl.addEventListener("dblclick", evt => {
 		evt.preventDefault();
 		api("POST", "remote/mouse-click", {button: "left", doubleClick: true});
+	});
+
+	screencastContainerEl.addEventListener("wheel", evt => {
+		evt.preventDefault();
+		onScroll({x: evt.deltaX / 5, y: evt.deltaY / 5});
 	});
 
 	screencastEl.addEventListener("mousemove", evt => {
@@ -148,7 +221,6 @@ async function main() {
 
 	let numTouches = 0;
 	let touches = {};
-	let scrollDist = {x: 0, y: 0};
 	screencastContainerEl.addEventListener("touchstart", evt => {
 		evt.preventDefault();
 		numTouches += evt.changedTouches.length;
@@ -176,24 +248,9 @@ async function main() {
 			delta.y = Math.round(signPow(delta.y, 1.5));
 			moveDelta(mousePos, screenSize, delta);
 		} else if (numTouches == 2) {
-			delta.x = delta.x / 5 / numTouches;
-			delta.y = delta.y / 5 / numTouches;
-
-			if (Math.abs(delta.x) > Math.abs(delta.y)) {
-				scrollDist.x += delta.x;
-				let distX = roundToZero(scrollDist.x);
-				if (distX != 0) {
-					api("POST", "remote/scroll", {x: distX, y: 0});
-					scrollDist.x -= distX;
-				}
-			} else {
-				scrollDist.y += delta.y;
-				let distY = roundToZero(scrollDist.y);
-				if (distY != 0) {
-					api("POST", "remote/scroll", {x: 0, y: distY});
-					scrollDist.y -= distY;
-				}
-			}
+			delta.x = -delta.x / 5 / numTouches;
+			delta.y = -delta.y / 5 / numTouches;
+			onScroll(delta);
 		}
 	});
 
