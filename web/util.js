@@ -1,11 +1,11 @@
 window.addEventListener("error", evt => {
 	console.error(evt);
-	alert("Oh no: " + evt.message);
+	alert("Error: " + evt.message + " -- " + evt.filename + ":" + evt.lineno);
 });
 
 window.addEventListener("unhandledrejection", evt => {
 	console.error(evt);
-	alert("Oh no: " + evt.reason.toString());
+	alert("Unhandled rejection: " + evt.reason.toString());
 });
 
 async function api(method, path, body = null) {

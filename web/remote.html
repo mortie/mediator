@@ -181,17 +181,22 @@ async function main() {
 		api("POST", "remote/keyboard-key", {key: "enter"});
 	});
 
-	screencastContainerEl.addEventListener("click", evt => {
+	screencastEl.addEventListener("click", evt => {
 		evt.preventDefault();
 		api("POST", "remote/mouse-click", {button: "left", doubleClick: false});
 	});
 
-	screencastContainerEl.addEventListener("dblclick", evt => {
+	screencastEl.addEventListener("dblclick", evt => {
 		evt.preventDefault();
 		api("POST", "remote/mouse-click", {button: "left", doubleClick: true});
 	});
 
-	screencastContainerEl.addEventListener("wheel", evt => {
+	screencastEl.addEventListener("contextmenu", evt => {
+		evt.preventDefault();
+		api("POST", "remote/mouse-click", {button: "right", doubleClick: false});
+	});
+
+	screencastEl.addEventListener("wheel", evt => {
 		evt.preventDefault();
 		onScroll({x: evt.deltaX / 5, y: evt.deltaY / 5});
 	});
@@ -208,15 +213,6 @@ async function main() {
 		mousePos.y = Math.round(fracY * screenSize.height);
 		updateCursor(mousePos, screenSize);
 		api("PUT", "remote/mouse-pos", mousePos);
-	});
-
-	screencastContainerEl.addEventListener("mousemove", evt => {
-		if (evt.buttons != 1) {
-			return;
-		}
-
-		evt.preventDefault();
-		moveDelta(mousePos, screenSize, {x: evt.movementX, y: evt.movementY});
 	});
 
 	let numTouches = 0;
@@ -244,8 +240,8 @@ async function main() {
 		}
 
 		if (numTouches == 1) {
-			delta.x = Math.round(signPow(delta.x, 1.5));
-			delta.y = Math.round(signPow(delta.y, 1.5));
+			delta.x = Math.round(signPow(delta.x / 2, 1.5));
+			delta.y = Math.round(signPow(delta.y / 2, 1.5));
 			moveDelta(mousePos, screenSize, delta);
 		} else if (numTouches == 2) {
 			delta.x = -delta.x / 5 / numTouches;
@@ -258,7 +254,6 @@ async function main() {
 		evt.preventDefault();
 		numTouches -= evt.changedTouches.length;
 		for (let touch of evt.changedTouches) {
-			numTouches -= 1;
 			let oldTouch = touches[touch.identifier];
 			touches[touch.identifier] = null;
 			if (oldTouch.moveDist < 10) {
