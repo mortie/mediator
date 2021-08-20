@@ -1,3 +1,13 @@
+window.addEventListener("error", evt => {
+	console.error(evt);
+	alert("Oh no: " + evt.message);
+});
+
+window.addEventListener("unhandledrejection", evt => {
+	console.error(evt);
+	alert("Oh no: " + evt.reason.toString());
+});
+
 async function api(method, path, body = null) {
 	let options = {method};
 	if (body != null) {
@@ -5,18 +15,8 @@ async function api(method, path, body = null) {
 	}
 
 	let json;
-	try {
-		let resp = await fetch("/api/" + path, options).then(r => r.text());
-		json = JSON.parse(resp);
-	} catch (err) {
-		alert(err.toString());
-		throw err;
-	}
-
-	if (json.error != null) {
-		alert(json.error);
-		throw new Error(json.error);
-	}
+	let resp = await fetch("/api/" + path, options).then(r => r.text());
+	json = JSON.parse(resp);
 
 	return json;
 }

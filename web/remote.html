@@ -11,6 +11,12 @@ body {
 	margin: 0px;
 }
 
+#cursor {
+	position: absolute;
+	left: 0px;
+	top: 0px;
+}
+
 #screencast-container {
 	max-height: calc(100% - 200px);
 	height: 100%;
@@ -29,15 +35,181 @@ body {
 	</head>
 
 	<body>
+		<img id="cursor" src="cursor.png" width=25>
 		<div id="screencast-container">
 			<img id="screencast" src="/api/remote/screencast">
 		</div>
 
+		<form id="text-form">
+			<input name="text" type="text">
+		</form>
+
 		<script src="util.js"></script>
 		<script>
+let cursorEl = document.getElementById("cursor");
+let screencastEl = document.getElementById("screencast");
+let screencastContainerEl = document.getElementById("screencast-container");
+let textFormEl = document.getElementById("text-form");
+
+function updateCursor(mousePos, screenSize) {
+	let fracX = mousePos.x / screenSize.width;
+	let fracY = mousePos.y / screenSize.height;
+	let left = fracX * screencastEl.offsetWidth + screencastEl.offsetLeft;
+	let top = fracY * screencastEl.offsetHeight + screencastEl.offsetTop;
+	cursorEl.style.left = left + "px";
+	cursorEl.style.top = top + "px";
+}
+
+function moveDelta(mousePos, screenSize, delta) {
+	mousePos.x += delta.x;
+	if (mousePos.x >= screenSize.width) {
+		mousePos.x = screenSize.width - 1;
+	} else if (mousePos.x < 0) {
+		mousePos.x = 0;
+	}
+
+	mousePos.y += delta.y;
+	if (mousePos.y >= screenSize.height) {
+		mousePos.y = screenSize.height - 1;
+	} else if (mousePos.y < 0) {
+		mousePos.y = 0;
+	}
+
+	updateCursor(mousePos, screenSize);
+	api("PUT", "remote/mouse-pos", mousePos);
+}
+
+function signPow(num, pow) {
+	if (num >= 0) {
+		return Math.pow(num, pow);
+	} else {
+		return -Math.pow(-num, pow);
+	}
+}
+
+function roundToZero(num) {
+	if (num >= 0) {
+		return Math.floor(num);
+	} else {
+		return Math.ceil(num);
+	}
+}
+
 async function main() {
-	let screenSize = api("GET", "remote/screen-size");
-	let mousePos = api("GET", "remote/mouse-pos");
+	let screenSize = await api("GET", "remote/screen-size");
+	let mousePos = await api("GET", "remote/mouse-pos");
+
+	updateCursor(mousePos, screenSize);
+	setInterval(async () => {
+		mousePos = await api("GET", "remote/mouse-pos");
+		updateCursor(mousePos, screenSize);
+	}, 1000);
+
+	textFormEl.addEventListener("submit", async evt => {
+		evt.preventDefault();
+		let text = evt.target.elements.text.value;
+		evt.target.elements.text.value = "";
+		await api("POST", "remote/keyboard-type", {text: evt.target.elements.text.value});
+		api("POST", "remote/keyboard-keys", {key: "enter", modifiers: []});
+	});
+
+	screencastContainerEl.addEventListener("click", evt => {
+		evt.preventDefault();
+		api("POST", "remote/mouse-click", {button: "left", doubleClick: false});
+	});
+
+	screencastContainerEl.addEventListener("dblclick", evt => {
+		evt.preventDefault();
+		api("POST", "remote/mouse-click", {button: "left", doubleClick: true});
+	});
+
+	screencastEl.addEventListener("mousemove", evt => {
+		if (evt.buttons != 0) {
+			return;
+		}
+
+		evt.preventDefault();
+		let fracX = evt.offsetX / evt.target.offsetWidth;
+		let fracY = evt.offsetY / evt.target.offsetHeight;
+		mousePos.x = Math.round(fracX * screenSize.width);
+		mousePos.y = Math.round(fracY * screenSize.height);
+		updateCursor(mousePos, screenSize);
+		api("PUT", "remote/mouse-pos", mousePos);
+	});
+
+	screencastContainerEl.addEventListener("mousemove", evt => {
+		if (evt.buttons != 1) {
+			return;
+		}
+
+		evt.preventDefault();
+		moveDelta(mousePos, screenSize, {x: evt.movementX, y: evt.movementY});
+	});
+
+	let numTouches = 0;
+	let touches = {};
+	let scrollDist = {x: 0, y: 0};
+	screencastContainerEl.addEventListener("touchstart", evt => {
+		evt.preventDefault();
+		numTouches += evt.changedTouches.length;
+		for (let touch of evt.changedTouches) {
+			touches[touch.identifier] = {x: touch.clientX, y: touch.clientY, moveDist: 0};
+		}
+	});
+
+	screencastContainerEl.addEventListener("touchmove", evt => {
+		evt.preventDefault();
+
+		let delta = {x: 0, y: 0}
+		for (let touch of evt.changedTouches) {
+			let oldTouch = touches[touch.identifier];
+			let d = {x: touch.clientX - oldTouch.x, y: touch.clientY - oldTouch.y};
+			oldTouch.moveDist += Math.sqrt(d.x * d.x + d.y * d.y);
+			oldTouch.x = touch.clientX;
+			oldTouch.y = touch.clientY;
+			delta.x += d.x;
+			delta.y += d.y;
+		}
+
+		if (numTouches == 1) {
+			delta.x = Math.round(signPow(delta.x, 1.5));
+			delta.y = Math.round(signPow(delta.y, 1.5));
+			moveDelta(mousePos, screenSize, delta);
+		} else if (numTouches == 2) {
+			delta.x = delta.x / 5 / numTouches;
+			delta.y = delta.y / 5 / numTouches;
+
+			if (Math.abs(delta.x) > Math.abs(delta.y)) {
+				scrollDist.x += delta.x;
+				let distX = roundToZero(scrollDist.x);
+				if (distX != 0) {
+					api("POST", "remote/scroll", {x: distX, y: 0});
+					scrollDist.x -= distX;
+				}
+			} else {
+				scrollDist.y += delta.y;
+				let distY = roundToZero(scrollDist.y);
+				if (distY != 0) {
+					api("POST", "remote/scroll", {x: 0, y: distY});
+					scrollDist.y -= distY;
+				}
+			}
+		}
+	});
+
+	screencastContainerEl.addEventListener("touchend", evt => {
+		evt.preventDefault();
+		numTouches -= evt.changedTouches.length;
+		for (let touch of evt.changedTouches) {
+			numTouches -= 1;
+			let oldTouch = touches[touch.identifier];
+			touches[touch.identifier] = null;
+			if (oldTouch.moveDist < 10) {
+				api("POST", "remote/mouse-click", {button: "left", doubleClick: false});
+				break;
+			}
+		}
+	});
 }
 
 main();

@@ -16,6 +16,27 @@ type Config struct {
 	BasePath string `toml:"base_path"`
 }
 
+type EmptyData struct {}
+
+type KeyboardTypeData struct {
+	Text string `json:"text"`
+}
+
+type KeyboardKeyData struct {
+	Key string `json:"key"`
+	Modifiers []string `json:"modifiers"`
+}
+
+type ScrollData struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+type MouseClickData struct {
+	Button string `json:"button"`
+	DoubleClick bool `json:"doubleClick"`
+}
+
 type MousePosData struct {
 	X int `json:"x"`
 	Y int `json:"y"`
@@ -106,7 +127,73 @@ func main() {
 			}
 
 			robotgo.MoveMouse(pos.X, pos.Y)
-			return nil
+			return json.NewEncoder(w).Encode(&EmptyData{})
+		} else {
+			return errors.New("Invalid method: " + req.Method)
+		}
+	}))
+
+	http.HandleFunc("/api/remote/mouse-click", handler(func(w RW, req *Req) error {
+		if req.Method == "POST" {
+			var click MouseClickData
+			err := json.NewDecoder(req.Body).Decode(&click)
+			if err != nil {
+				return err
+			}
+
+			robotgo.MouseClick(click.Button, click.DoubleClick)
+			return json.NewEncoder(w).Encode(&EmptyData{})
+		} else {
+			return errors.New("Invalid method: " + req.Method)
+		}
+	}))
+
+	http.HandleFunc("/api/remote/scroll", handler(func(w RW, req *Req) error {
+		if req.Method == "POST" {
+			var scroll ScrollData
+			err := json.NewDecoder(req.Body).Decode(&scroll)
+			if err != nil {
+				return err
+			}
+
+			robotgo.Scroll(scroll.X, scroll.Y)
+			return json.NewEncoder(w).Encode(&EmptyData{})
+		} else {
+			return errors.New("Invalid method: "+ req.Method)
+		}
+	}))
+
+	http.HandleFunc("/api/remote/keyboard-type", handler(func(w RW, req *Req) error {
+		if req.Method == "POST" {
+			var text KeyboardTypeData
+			err := json.NewDecoder(req.Body).Decode(&text)
+			if err != nil {
+				return err
+			}
+
+			robotgo.TypeStr(text.Text)
+			return json.NewEncoder(w).Encode(&EmptyData{})
+		} else {
+			return errors.New("Invalid method: " + req.Method)
+		}
+	}))
+
+	http.HandleFunc("/api/remote/keyboard-keys", handler(func(w RW, req *Req) error {
+		if req.Method == "POST" {
+			var key KeyboardKeyData
+			err := json.NewDecoder(req.Body).Decode(&key)
+			if err != nil {
+				return err
+			}
+
+			var modifiers []interface{}
+			for _, modifier := range key.Modifiers {
+				modifiers = append(modifiers, modifier)
+			}
+
+			log.Printf("key: %s, modifiers: %#v", key.Key, modifiers)
+			robotgo.KeyTap(key.Key, modifiers...)
+			return json.NewEncoder(w).Encode(&EmptyData{})
 		} else {
 			return errors.New("Invalid method: " + req.Method)
 		}
@@ -182,7 +269,7 @@ func main() {
 	go screencap.Run()
 
 	log.Println("Listening on :3000...")
-	err = http.ListenAndServe("localhost:3000", nil)
+	err = http.ListenAndServe(":3000", nil)
 	if err != nil {
 		log.Fatal(err)
 	}

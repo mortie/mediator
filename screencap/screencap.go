@@ -58,9 +58,12 @@ func Capture() chan *Buffer {
 }
 
 func Run() {
+	targetDelta := 200 * time.Millisecond
+
 	for {
 		<-startChan
 
+		startTime := time.Now()
 		img, err := screenshot.CaptureDisplay(0)
 		if err != nil {
 			log.Printf("Failed to capture screenshot: %v", err)
@@ -71,7 +74,7 @@ func Run() {
 		buf := &buffers[currentBuffer]
 		currentBuffer = (currentBuffer + 1) % len(buffers)
 		buf.Length = 0
-		err = jpeg.Encode(buf, img, &jpeg.Options{Quality: 80})
+		err = jpeg.Encode(buf, img, &jpeg.Options{Quality: 40})
 		if err != nil {
 			log.Printf("Failed to encode jpeg: %v", err)
 			time.Sleep(2 * time.Second)
@@ -84,5 +87,10 @@ func Run() {
 		}
 		chans = make([]chan *Buffer, 0)
 		mut.Unlock()
+
+		delta := time.Now().Sub(startTime)
+		if delta < targetDelta {
+			time.Sleep(targetDelta - delta)
+		}
 	}
 }
