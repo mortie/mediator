@@ -101,12 +101,10 @@ window.addEventListener("focus", () => {
 });
 
 screencastEl.addEventListener("load", () => {
-	console.log("Screencast loaded", screencastEl.src);
 	screencastLoaded = true;
 });
 
 screencastEl.addEventListener("error", evt => {
-	console.log("Screencast errored:", screencastEl.src, evt);
 	screencastLoaded = false;
 
 	// This is necessary because sometimes, right after Safari on iOS returns
