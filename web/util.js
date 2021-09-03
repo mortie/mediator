@@ -67,5 +67,24 @@ function renderToElement(el, children) {
 	}
 }
 
-function debounce(timeout) {
+function debounce(func) {
+	let f = function() {
+		if (f.waiting) {
+			f.args = arguments;
+			return;
+		}
+
+		f.args = null;
+		f.waiting = true;
+		func.apply(null, arguments).then(() => {
+			f.waiting = false;
+			if (f.args != null) {
+				f.apply(null, f.args);
+			}
+		});
+	}
+
+	f.args = null;
+	f.waiting = null;
+	return f;
 }

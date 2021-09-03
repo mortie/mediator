@@ -2,6 +2,7 @@
 <html>
 	<head>
 		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Mediator - Remote</title>
 		<link rel="stylesheet" href="style.css">
 		<link rel="icon" type="image/png" href="favicon.png">
@@ -32,18 +33,35 @@ body {
 	max-height: calc(100vh - 200px);
 	max-width: 100%;
 }
+
+#input {
+	padding: 12px;
+	text-align: center;
+}
+
+#keyboard {
+	margin-top: 12px;
+}
 		</style>
 	</head>
 
 	<body>
-		<img id="cursor" src="cursor.png" width=25>
+		<img id="cursor" src="cursor.png" width=10>
 		<div id="screencast-container">
 			<img id="screencast" src="/api/remote/screencast">
 		</div>
 
-		<form id="text-form">
-			<input id="text" name="text" type="text">
-		</form>
+		<div id="input">
+			<form id="text-form">
+				<input id="text" name="text" type="text">
+			</form>
+
+			<div id="keyboard">
+				<button onclick='sendKey("escape")'>Esc</button>
+				<button onclick='sendKey("enter")'>Enter</button>
+				<button onclick='sendKey("space")'>Space</button>
+			</div>
+		</div>
 
 		<script src="util.js"></script>
 		<script>
@@ -53,8 +71,22 @@ let screencastContainerEl = document.getElementById("screencast-container");
 let textFormEl = document.getElementById("text-form");
 let textEl = document.getElementById("text");
 let screencastSrc = screencastEl.src;
+let screencastLoaded = false;
+
+let sendMousePos = debounce(pos => {
+	return api("PUT", "remote/mouse-pos", pos);
+});
+
+let sendKey = key => {
+	return api("POST", "remote/keyboard-key", {key});
+};
 
 window.addEventListener("blur", () => {
+	if (!screencastLoaded) {
+		screencastEl.src = "";
+		return;
+	}
+
 	let canvas = document.createElement("canvas");
 	canvas.width = screencastEl.width;
 	canvas.height = screencastEl.height;
@@ -64,26 +96,42 @@ window.addEventListener("blur", () => {
 });
 
 window.addEventListener("focus", () => {
+	screencastLoaded = false;
 	screencastEl.src = screencastSrc;
+});
+
+screencastEl.addEventListener("load", () => {
+	console.log("Screencast loaded", screencastEl.src);
+	screencastLoaded = true;
+});
+
+screencastEl.addEventListener("error", evt => {
+	console.log("Screencast errored:", screencastEl.src, evt);
+	screencastLoaded = false;
+
+	// This is necessary because sometimes, right after Safari on iOS returns
+	// from sleep, it will fail to load the screencast.
+	// This line forces the browser to reload the image.
+	screencastEl.src = screencastEl.src;
 });
 
 window.addEventListener("keydown", evt => {
 	let handled = true;
 	console.log("key:", evt.key);
 	if (evt.key == " ") {
-		api("POST", "remote/keyboard-key", {key: "space"});
+		sendKey("space");
 	} else if (evt.key == "Enter" && document.activeElement.tagName != "INPUT") {
-		api("POST", "remote/keyboard-key", {key: "enter"});
+		sendKey("enter");
 	} else if (evt.key == "ArrowUp") {
-		api("POST", "remote/keyboard-key", {key: "up"});
+		sendKey("up");
 	} else if (evt.key == "ArrowDown") {
-		api("POST", "remote/keyboard-key", {key: "down"});
+		sendKey("down");
 	} else if (evt.key == "ArrowLeft") {
-		api("POST", "remote/keyboard-key", {key: "left"});
+		sendKey("left");
 	} else if (evt.key == "ArrowRight") {
-		api("POST", "remote/keyboard-key", {key: "right"});
+		sendKey("right");
 	} else if (evt.key == "Escape") {
-		api("POST", "remote/keyboard-key", {key: "escape"});
+		sendKey("escape");
 	} else {
 		handled = false;
 		if (evt.key.length == 1 && document.activeElement.tagName != "INPUT") {
@@ -144,7 +192,7 @@ function moveDelta(mousePos, screenSize, delta) {
 	}
 
 	updateCursor(mousePos, screenSize);
-	api("PUT", "remote/mouse-pos", mousePos);
+	sendMousePos(mousePos);
 }
 
 function signPow(num, pow) {
@@ -169,16 +217,18 @@ async function main() {
 
 	updateCursor(mousePos, screenSize);
 	setInterval(async () => {
-		mousePos = await api("GET", "remote/mouse-pos");
-		updateCursor(mousePos, screenSize);
-	}, 1000);
+		if (!sendMousePos.waiting) {
+			mousePos = await api("GET", "remote/mouse-pos");
+			updateCursor(mousePos, screenSize);
+		}
+	}, 200);
 
 	textFormEl.addEventListener("submit", async evt => {
 		evt.preventDefault();
 		let text = evt.target.elements.text.value;
 		evt.target.elements.text.value = "";
 		await api("POST", "remote/keyboard-type", {text});
-		api("POST", "remote/keyboard-key", {key: "enter"});
+		sendKey("enter");
 	});
 
 	screencastEl.addEventListener("click", evt => {
@@ -212,7 +262,7 @@ async function main() {
 		mousePos.x = Math.round(fracX * screenSize.width);
 		mousePos.y = Math.round(fracY * screenSize.height);
 		updateCursor(mousePos, screenSize);
-		api("PUT", "remote/mouse-pos", mousePos);
+		sendMousePos(mousePos);
 	});
 
 	let numTouches = 0;
@@ -240,8 +290,8 @@ async function main() {
 		}
 
 		if (numTouches == 1) {
-			delta.x = Math.round(signPow(delta.x / 2, 1.5));
-			delta.y = Math.round(signPow(delta.y / 2, 1.5));
+			delta.x = Math.round(signPow(delta.x, 1.5));
+			delta.y = Math.round(signPow(delta.y, 1.5));
 			moveDelta(mousePos, screenSize, delta);
 		} else if (numTouches == 2) {
 			delta.x = -delta.x / 5 / numTouches;
