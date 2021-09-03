@@ -156,7 +156,7 @@ func main() {
 				return err
 			}
 
-			robotgo.Scroll(scroll.X, scroll.Y)
+			robotgo.Scroll(scroll.X * 20, scroll.Y * 20)
 			return json.NewEncoder(w).Encode(&EmptyData{})
 		} else {
 			return errors.New("Invalid method: "+ req.Method)
@@ -191,7 +191,6 @@ func main() {
 				modifiers = append(modifiers, modifier)
 			}
 
-			log.Printf("key: %s, modifiers: %#v", key.Key, modifiers)
 			robotgo.KeyTap(key.Key, modifiers...)
 			return json.NewEncoder(w).Encode(&EmptyData{})
 		} else {
