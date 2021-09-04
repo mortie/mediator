@@ -60,6 +60,7 @@ body {
 				<button onclick='sendKey("escape")'>Esc</button>
 				<button onclick='sendKey("enter")'>Enter</button>
 				<button onclick='sendKey("space")'>Space</button>
+				<button onclick='sendKey("backspace")'>Backspace</button>
 			</div>
 		</div>
 
@@ -114,11 +115,14 @@ screencastEl.addEventListener("error", evt => {
 });
 
 window.addEventListener("keydown", evt => {
+	if (document.activeElement.tagName == "INPUT") {
+		return;
+	}
+
 	let handled = true;
-	console.log("key:", evt.key);
 	if (evt.key == " ") {
 		sendKey("space");
-	} else if (evt.key == "Enter" && document.activeElement.tagName != "INPUT") {
+	} else if (evt.key == "Enter") {
 		sendKey("enter");
 	} else if (evt.key == "ArrowUp") {
 		sendKey("up");
@@ -130,9 +134,11 @@ window.addEventListener("keydown", evt => {
 		sendKey("right");
 	} else if (evt.key == "Escape") {
 		sendKey("escape");
+	} else if (evt.key == "Backspace") {
+		sendKey("backspace");
 	} else {
 		handled = false;
-		if (evt.key.length == 1 && document.activeElement.tagName != "INPUT") {
+		if (evt.key.length == 1) {
 			textEl.focus();
 		}
 	}

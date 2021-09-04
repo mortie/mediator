@@ -14,6 +14,7 @@ import "coffee.mort.mediator/screencap"
 
 type Config struct {
 	BasePath string `toml:"base_path"`
+	ScrollStep int `toml:"scroll_step"`
 }
 
 type EmptyData struct {}
@@ -156,7 +157,7 @@ func main() {
 				return err
 			}
 
-			robotgo.Scroll(scroll.X * 20, scroll.Y * 20)
+			robotgo.Scroll(scroll.X * conf.ScrollStep, scroll.Y * conf.ScrollStep)
 			return json.NewEncoder(w).Encode(&EmptyData{})
 		} else {
 			return errors.New("Invalid method: "+ req.Method)
