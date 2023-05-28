@@ -1,16 +1,23 @@
 package main
 
-import "errors"
-import "log"
-import "os"
-import "fmt"
-import "path"
-import "net/http"
-import "io/ioutil"
-import "encoding/json"
-import "github.com/go-vgo/robotgo"
-import "github.com/BurntSushi/toml"
-import "coffee.mort.mediator/screencap"
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"path"
+	"syscall"
+
+	"coffee.mort.mediator/screencap"
+	"github.com/BurntSushi/toml"
+	"github.com/go-vgo/robotgo"
+	"nhooyr.io/websocket"
+)
 
 type Config struct {
 	BasePath string `toml:"base_path"`
@@ -18,6 +25,11 @@ type Config struct {
 }
 
 type EmptyData struct {}
+
+type WSMessage struct {
+	Type string `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
 
 type KeyboardTypeData struct {
 	Text string `json:"text"`
@@ -105,84 +117,47 @@ func main() {
 	fs := http.FileServer(http.Dir("./web"))
 	http.Handle("/", fs)
 
-	http.HandleFunc("/api/remote/screen-size", handler(func(w RW, req *Req) error {
-		if req.Method == "GET" {
-			var size ScreenSizeData
-			size.Width, size.Height = robotgo.GetScreenSize()
-			return json.NewEncoder(w).Encode(&size)
-		} else {
-			return errors.New("Invalid method: " + req.Method)
-		}
-	}))
-
-	http.HandleFunc("/api/remote/mouse-pos", handler(func(w RW, req *Req) error {
-		if req.Method == "GET" {
+	handleWebsocketMessage := func(msg *WSMessage) error {
+		var err error
+		if msg.Type == "mouse-move" {
 			var pos MousePosData
-			pos.X, pos.Y = robotgo.GetMousePos()
-			return json.NewEncoder(w).Encode(&pos)
-		} else if req.Method == "PUT" {
-			var pos MousePosData
-			err := json.NewDecoder(req.Body).Decode(&pos)
+			err = json.Unmarshal(msg.Data, &pos)
 			if err != nil {
 				return err
 			}
 
 			robotgo.MoveMouse(pos.X, pos.Y)
-			return json.NewEncoder(w).Encode(&EmptyData{})
-		} else {
-			return errors.New("Invalid method: " + req.Method)
-		}
-	}))
-
-	http.HandleFunc("/api/remote/mouse-click", handler(func(w RW, req *Req) error {
-		if req.Method == "POST" {
+			return nil
+		} else if msg.Type == "mouse-click" {
 			var click MouseClickData
-			err := json.NewDecoder(req.Body).Decode(&click)
+			err = json.Unmarshal(msg.Data, &click)
 			if err != nil {
 				return err
 			}
 
 			robotgo.MouseClick(click.Button, click.DoubleClick)
-			return json.NewEncoder(w).Encode(&EmptyData{})
-		} else {
-			return errors.New("Invalid method: " + req.Method)
-		}
-	}))
-
-	http.HandleFunc("/api/remote/scroll", handler(func(w RW, req *Req) error {
-		if req.Method == "POST" {
+			return nil
+		} else if msg.Type == "scroll" {
 			var scroll ScrollData
-			err := json.NewDecoder(req.Body).Decode(&scroll)
+			err = json.Unmarshal(msg.Data, &scroll)
 			if err != nil {
 				return err
 			}
 
 			robotgo.Scroll(scroll.X * conf.ScrollStep, scroll.Y * conf.ScrollStep)
-			return json.NewEncoder(w).Encode(&EmptyData{})
-		} else {
-			return errors.New("Invalid method: "+ req.Method)
-		}
-	}))
-
-	http.HandleFunc("/api/remote/keyboard-type", handler(func(w RW, req *Req) error {
-		if req.Method == "POST" {
+			return nil
+		} else if msg.Type == "keyboard-type" {
 			var text KeyboardTypeData
-			err := json.NewDecoder(req.Body).Decode(&text)
+			err = json.Unmarshal(msg.Data, &text)
 			if err != nil {
 				return err
 			}
 
 			robotgo.TypeStr(text.Text)
-			return json.NewEncoder(w).Encode(&EmptyData{})
-		} else {
-			return errors.New("Invalid method: " + req.Method)
-		}
-	}))
-
-	http.HandleFunc("/api/remote/keyboard-key", handler(func(w RW, req *Req) error {
-		if req.Method == "POST" {
+			return nil
+		} else if msg.Type == "keyboard-key" {
 			var key KeyboardKeyData
-			err := json.NewDecoder(req.Body).Decode(&key)
+			err = json.Unmarshal(msg.Data, &key)
 			if err != nil {
 				return err
 			}
@@ -193,7 +168,56 @@ func main() {
 			}
 
 			robotgo.KeyTap(key.Key, modifiers...)
-			return json.NewEncoder(w).Encode(&EmptyData{})
+			return nil
+		} else {
+			return fmt.Errorf("Unknown message type: %s", msg.Type)
+		}
+	}
+
+	http.HandleFunc("/api/ws", func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			log.Println("Error accepting websocket:", err)
+			return
+		}
+
+		defer c.Close(websocket.StatusNormalClosure, "")
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		for {
+			_, buf, err := c.Read(ctx)
+			if err == io.EOF {
+				return
+			} else if err != nil {
+				log.Println("Websocket client going away:", err)
+				c.Close(websocket.StatusAbnormalClosure, "Failed to read message")
+				return
+			}
+
+			var msg WSMessage
+			err = json.Unmarshal(buf, &msg)
+			if err != nil {
+				log.Println("Failed to parse websocket message:", err)
+				c.Close(websocket.StatusAbnormalClosure, "Failed to parse message")
+				return
+			}
+
+			err = handleWebsocketMessage(&msg)
+			if err != nil {
+				log.Println("Failed to handle websocket message:", err)
+				c.Close(websocket.StatusAbnormalClosure, "Failed to handle message")
+				return
+			}
+		}
+	})
+
+	http.HandleFunc("/api/remote/screen-size", handler(func(w RW, req *Req) error {
+		if req.Method == "GET" {
+			var size ScreenSizeData
+			size.Width, size.Height = robotgo.GetScreenSize()
+			return json.NewEncoder(w).Encode(&size)
 		} else {
 			return errors.New("Invalid method: " + req.Method)
 		}
@@ -213,19 +237,25 @@ func main() {
 					"Content-Type: image/jpeg\r\n" +
 					"Content-Length: %d\r\n" +
 					"\r\n", img.Length)))
-				if err != nil {
-					log.Printf("Write error: %v", err)
+				if errors.Is(err, syscall.EPIPE) {
+					return nil
+				} else if err != nil {
+					log.Printf("Screencast: Header write error: %v", err)
 					return nil
 				}
 
 				_, err = w.Write(img.Data[0:img.Length])
-				if err != nil {
-					log.Printf("Write error: %v", err)
+				if errors.Is(err, syscall.EPIPE) {
+					return nil;
+				} else if err != nil {
+					log.Printf("Screencast: Body write error: %v", err)
 					return nil
 				}
 
 				_, err = w.Write([]byte("\r\n"))
-				if err != nil {
+				if errors.Is(err, syscall.EPIPE) {
+					return nil;
+				} else if err != nil {
 					log.Printf("Write error: %v", err)
 					return nil
 				}

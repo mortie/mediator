@@ -42,6 +42,10 @@ body {
 #keyboard {
 	margin-top: 12px;
 }
+
+#text {
+	font-size: 14pt;
+}
 		</style>
 	</head>
 
@@ -65,6 +69,7 @@ body {
 		</div>
 
 		<script src="util.js"></script>
+		<script src="wsutil.js"></script>
 		<script>
 let cursorEl = document.getElementById("cursor");
 let screencastEl = document.getElementById("screencast");
@@ -74,12 +79,12 @@ let textEl = document.getElementById("text");
 let screencastSrc = screencastEl.src;
 let screencastLoaded = false;
 
-let sendMousePos = debounce(pos => {
-	return api("PUT", "remote/mouse-pos", pos);
-});
+let sendMousePos = pos => {
+	wsapi("mouse-move", pos);
+};
 
 let sendKey = key => {
-	return api("POST", "remote/keyboard-key", {key});
+	wsapi("keyboard-key", {key});
 };
 
 window.addEventListener("blur", () => {
@@ -167,14 +172,14 @@ function onScroll(delta) {
 		scrollDist.x += delta.x;
 		let distX = roundToZero(scrollDist.x);
 		if (distX != 0) {
-			api("POST", "remote/scroll", {x: distX, y: 0});
+			wsapi("scroll", {x: distX, y: 0});
 			scrollDist.x -= distX;
 		}
 	} else {
 		scrollDist.y += delta.y;
 		let distY = roundToZero(scrollDist.y);
 		if (distY != 0) {
-			api("POST", "remote/scroll", {x: 0, y: distY});
+			wsapi("scroll", {x: 0, y: distY});
 			scrollDist.y -= distY;
 		}
 	}
@@ -217,37 +222,33 @@ function roundToZero(num) {
 
 async function main() {
 	let screenSize = await api("GET", "remote/screen-size");
-	let mousePos = await api("GET", "remote/mouse-pos");
+	let mousePos = {x: 0, y: 0};
 
 	updateCursor(mousePos, screenSize);
-	setInterval(async () => {
-		if (!sendMousePos.waiting) {
-			mousePos = await api("GET", "remote/mouse-pos");
-			updateCursor(mousePos, screenSize);
-		}
-	}, 200);
+
+	useWebsocket({});
 
 	textFormEl.addEventListener("submit", async evt => {
 		evt.preventDefault();
 		let text = evt.target.elements.text.value;
 		evt.target.elements.text.value = "";
-		await api("POST", "remote/keyboard-type", {text});
+		await wsapi("keyboard-type", {text});
 		sendKey("enter");
 	});
 
 	screencastEl.addEventListener("click", evt => {
 		evt.preventDefault();
-		api("POST", "remote/mouse-click", {button: "left", doubleClick: false});
+		wsapi("mouse-click", {button: "left", doubleClick: false});
 	});
 
 	screencastEl.addEventListener("dblclick", evt => {
 		evt.preventDefault();
-		api("POST", "remote/mouse-click", {button: "left", doubleClick: true});
+		wsapi("mouse-click", {button: "left", doubleClick: true});
 	});
 
 	screencastEl.addEventListener("contextmenu", evt => {
 		evt.preventDefault();
-		api("POST", "remote/mouse-click", {button: "right", doubleClick: false});
+		wsapi("mouse-click", {button: "right", doubleClick: false});
 	});
 
 	screencastEl.addEventListener("wheel", evt => {
@@ -311,7 +312,7 @@ async function main() {
 			let oldTouch = touches[touch.identifier];
 			touches[touch.identifier] = null;
 			if (oldTouch.moveDist < 10) {
-				api("POST", "remote/mouse-click", {button: "left", doubleClick: false});
+				wsapi("mouse-click", {button: "left", doubleClick: false});
 				break;
 			}
 		}
