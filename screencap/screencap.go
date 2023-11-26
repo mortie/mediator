@@ -58,7 +58,7 @@ func Capture() chan *Buffer {
 }
 
 func Run() {
-	targetDelta := 200 * time.Millisecond
+	targetDelta := 66 * time.Millisecond
 
 	for {
 		<-startChan

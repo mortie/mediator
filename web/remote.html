@@ -20,7 +20,7 @@ body {
 }
 
 #screencast-container {
-	max-height: calc(100% - 200px);
+	max-height: calc(100% - 100px);
 	height: 100%;
 	text-align: center;
 }
@@ -30,7 +30,7 @@ body {
 }
 
 #screencast {
-	max-height: calc(100vh - 200px);
+	max-height: calc(100vh - 100px);
 	max-width: 100%;
 }
 
@@ -62,9 +62,11 @@ body {
 
 			<div id="keyboard">
 				<button onclick='sendKey("escape")'>Esc</button>
+				<button onclick='sendKey("cmd")'>Super</button>
 				<button onclick='sendKey("enter")'>Enter</button>
 				<button onclick='sendKey("space")'>Space</button>
 				<button onclick='sendKey("backspace")'>Backspace</button>
+				<button id="fullscreen-btn" onclick='document.body.requestFullscreen()'>Fullscreen</button>
 			</div>
 		</div>
 
@@ -76,8 +78,13 @@ let screencastEl = document.getElementById("screencast");
 let screencastContainerEl = document.getElementById("screencast-container");
 let textFormEl = document.getElementById("text-form");
 let textEl = document.getElementById("text");
+let fullscreenBtnEl = document.getElementById("fullscreen-btn")
 let screencastSrc = screencastEl.src;
 let screencastLoaded = false;
+
+if (!document.body.requestFullscreen) {
+	fullscreenBtnEl.style = "display: none";
+}
 
 let sendMousePos = pos => {
 	wsapi("mouse-move", pos);
@@ -119,7 +126,7 @@ screencastEl.addEventListener("error", evt => {
 	screencastEl.src = screencastEl.src;
 });
 
-window.addEventListener("keydown", evt => {
+window.addEventListener("keyup", evt => {
 	if (document.activeElement.tagName == "INPUT") {
 		return;
 	}
@@ -141,10 +148,13 @@ window.addEventListener("keydown", evt => {
 		sendKey("escape");
 	} else if (evt.key == "Backspace") {
 		sendKey("backspace");
+	} else if (evt.key == "Meta") {
+		sendKey("cmd");
 	} else {
 		handled = false;
 		if (evt.key.length == 1) {
 			textEl.focus();
+			textEl.value += evt.key;
 		}
 	}
 
@@ -220,13 +230,35 @@ function roundToZero(num) {
 	}
 }
 
+function mouseBtnToString(btn) {
+	if (btn == 0) {
+		return "left";
+	} else if (btn == 1) {
+		return "wheel"
+	} else if (btn == 2) {
+		return "right"
+	} else {
+		return "left";
+	}
+}
+
 async function main() {
 	let screenSize = await api("GET", "remote/screen-size");
 	let mousePos = {x: 0, y: 0};
+	let ignoreClickUntil = 0;
+	let ignoreMouseMoveUntil = 0;
 
 	updateCursor(mousePos, screenSize);
 
-	useWebsocket({});
+	useWebsocket({
+		"mouse-move": mousePos => {
+			if (new Date().getTime() < ignoreMouseMoveUntil) {
+				return;
+			}
+
+			updateCursor(mousePos, screenSize);
+		}
+	});
 
 	textFormEl.addEventListener("submit", async evt => {
 		evt.preventDefault();
@@ -236,14 +268,29 @@ async function main() {
 		sendKey("enter");
 	});
 
+	screencastEl.addEventListener("mousedown", evt => {
+		evt.preventDefault();
+		wsapi("mouse-down", {button: mouseBtnToString(evt.button)});
+	});
+
+	screencastEl.addEventListener("mouseup", evt => {
+		evt.preventDefault();
+		ignoreClickUntil = new Date().getTime() + 1000;
+		wsapi("mouse-up", {button: mouseBtnToString(evt.button)});
+	});
+
 	screencastEl.addEventListener("click", evt => {
 		evt.preventDefault();
-		wsapi("mouse-click", {button: "left", doubleClick: false});
+		if (new Date().getTime() < ignoreClickUntil) {
+			return;
+		}
+
+		wsapi("mouse-click", {button: mouseBtnToString(evt.button), doubleClick: false});
 	});
 
 	screencastEl.addEventListener("dblclick", evt => {
 		evt.preventDefault();
-		wsapi("mouse-click", {button: "left", doubleClick: true});
+		wsapi("mouse-click", {button: mouseBtnToString(evt.button), doubleClick: true});
 	});
 
 	screencastEl.addEventListener("contextmenu", evt => {
@@ -257,11 +304,8 @@ async function main() {
 	});
 
 	screencastEl.addEventListener("mousemove", evt => {
-		if (evt.buttons != 0) {
-			return;
-		}
-
 		evt.preventDefault();
+		ignoreMouseMoveUntil = new Date().getTime() + 1000;
 		let fracX = evt.offsetX / evt.target.offsetWidth;
 		let fracY = evt.offsetY / evt.target.offsetHeight;
 		mousePos.x = Math.round(fracX * screenSize.width);
@@ -282,6 +326,7 @@ async function main() {
 
 	screencastContainerEl.addEventListener("touchmove", evt => {
 		evt.preventDefault();
+		ignoreMouseMoveUntil = new Date().getTime() + 1000;
 
 		let delta = {x: 0, y: 0}
 		for (let touch of evt.changedTouches) {

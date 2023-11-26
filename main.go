@@ -12,7 +12,9 @@ import (
 	"os"
 	"path"
 	"syscall"
+	"time"
 
+	"coffee.mort.mediator/platform"
 	"coffee.mort.mediator/screencap"
 	"github.com/BurntSushi/toml"
 	"github.com/go-vgo/robotgo"
@@ -48,6 +50,10 @@ type ScrollData struct {
 type MouseClickData struct {
 	Button string `json:"button"`
 	DoubleClick bool `json:"doubleClick"`
+}
+
+type MouseButtonData struct {
+	Button string `json:"button"`
 }
 
 type MousePosData struct {
@@ -137,6 +143,24 @@ func main() {
 
 			robotgo.MouseClick(click.Button, click.DoubleClick)
 			return nil
+		} else if msg.Type == "mouse-down" {
+			var btn MouseButtonData
+			err = json.Unmarshal(msg.Data, &btn)
+			if err != nil {
+				return err
+			}
+
+			robotgo.Toggle(btn.Button, "down")
+			return nil
+		} else if msg.Type == "mouse-up" {
+			var btn MouseButtonData
+			err = json.Unmarshal(msg.Data, &btn)
+			if err != nil {
+				return err
+			}
+
+			robotgo.Toggle(btn.Button, "up")
+			return nil
 		} else if msg.Type == "scroll" {
 			var scroll ScrollData
 			err = json.Unmarshal(msg.Data, &scroll)
@@ -185,6 +209,47 @@ func main() {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
+		go func() {
+			done := ctx.Done()
+			pos := MousePosData{X: -1, Y: -1}
+
+			for {
+				select {
+				case <-time.After(33 * time.Millisecond):
+				case <-done:
+					return
+				}
+
+				x, y := robotgo.GetMousePos()
+				if x == pos.X && y == pos.Y {
+					continue
+				}
+
+				pos.X = x
+				pos.Y = y
+				posData, err := json.Marshal(&pos)
+				if err != nil {
+					log.Println("Marshal error:", err)
+					return
+				}
+
+				data, err := json.Marshal(&WSMessage{
+					Type: "mouse-move",
+					Data: posData,
+				})
+				if err != nil {
+					log.Println("Marshal error:", err)
+					return
+				}
+
+				err = c.Write(ctx, websocket.MessageText, data)
+				if err != nil {
+					log.Println("Write error:", err)
+					return
+				}
+			}
+		}()
 
 		for {
 			_, buf, err := c.Read(ctx)
@@ -290,6 +355,14 @@ func main() {
 			}
 
 			return json.NewEncoder(w).Encode(&list)
+		} else {
+			return errors.New("Invalid method: " + req.Method)
+		}
+	}))
+
+	http.HandleFunc("/api/shutdown", handler(func(w RW, req *Req) error {
+		if req.Method == "POST" {
+			return platform.Shutdown()
 		} else {
 			return errors.New("Invalid method: " + req.Method)
 		}
