@@ -1,10 +1,13 @@
 package screencap
 
-import "github.com/kbinani/screenshot"
-import "image/jpeg"
-import "sync"
-import "time"
-import "log"
+import (
+	"image/jpeg"
+	"sync"
+	"time"
+	"log"
+
+	"github.com/go-vgo/robotgo"
+)
 
 type Buffer struct {
 	Data []byte
@@ -64,17 +67,12 @@ func Run() {
 		<-startChan
 
 		startTime := time.Now()
-		img, err := screenshot.CaptureDisplay(0)
-		if err != nil {
-			log.Printf("Failed to capture screenshot: %v", err)
-			time.Sleep(2 * time.Second)
-			continue
-		}
+		img := robotgo.CaptureImg()
 
 		buf := &buffers[currentBuffer]
 		currentBuffer = (currentBuffer + 1) % len(buffers)
 		buf.Length = 0
-		err = jpeg.Encode(buf, img, &jpeg.Options{Quality: 40})
+		err := jpeg.Encode(buf, img, &jpeg.Options{Quality: 40})
 		if err != nil {
 			log.Printf("Failed to encode jpeg: %v", err)
 			time.Sleep(2 * time.Second)
